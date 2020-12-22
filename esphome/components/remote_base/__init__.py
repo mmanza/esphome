@@ -420,7 +420,7 @@ def raw_action(var, config, args):
 RC5Data, RC5BinarySensor, RC5Trigger, RC5Action, RC5Dumper = declare_protocol('RC5')
 RC5_SCHEMA = cv.Schema({
     cv.Required(CONF_ADDRESS): cv.All(cv.hex_int, cv.Range(min=0, max=0x1F)),
-    cv.Required(CONF_COMMAND): cv.All(cv.hex_int, cv.Range(min=0, max=0x3F)),
+    cv.Required(CONF_COMMAND): cv.All(cv.hex_int, cv.Range(min=0, max=0x7F)),
 })
 
 
@@ -546,7 +546,9 @@ RC_SWITCH_TRANSMITTER = cv.Schema({
 })
 
 rc_switch_protocols = ns.rc_switch_protocols
+RCSwitchData = ns.struct('RCSwitchData')
 RCSwitchBase = ns.class_('RCSwitchBase')
+RCSwitchTrigger = ns.class_('RCSwitchTrigger', RemoteReceiverTrigger)
 RCSwitchDumper = ns.class_('RCSwitchDumper', RemoteTransmitterDumper)
 RCSwitchRawAction = ns.class_('RCSwitchRawAction', RemoteTransmitterActionBase)
 RCSwitchTypeAAction = ns.class_('RCSwitchTypeAAction', RemoteTransmitterActionBase)
@@ -640,6 +642,11 @@ def rc_switch_type_d_action(var, config, args):
     cg.add(var.set_group((yield cg.templatable(config[CONF_GROUP], args, cg.std_string))))
     cg.add(var.set_device((yield cg.templatable(config[CONF_DEVICE], args, cg.uint8))))
     cg.add(var.set_state((yield cg.templatable(config[CONF_STATE], args, bool))))
+
+
+@register_trigger('rc_switch', RCSwitchTrigger, RCSwitchData)
+def rc_switch_trigger(var, config):
+    pass
 
 
 @register_dumper('rc_switch', RCSwitchDumper)

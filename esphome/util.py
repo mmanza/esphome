@@ -1,3 +1,5 @@
+from typing import Union, List
+
 import collections
 import io
 import logging
@@ -5,6 +7,7 @@ import os
 import re
 import subprocess
 import sys
+from pathlib import Path
 
 from esphome import const
 
@@ -151,7 +154,21 @@ class RedirectText:
         return True
 
 
-def run_external_command(func, *cmd, **kwargs):
+def run_external_command(func, *cmd,
+                         capture_stdout: bool = False,
+                         filter_lines: str = None) -> Union[int, str]:
+    """
+    Run a function from an external package that acts like a main method.
+
+    Temporarily replaces stdin/stderr/stdout, sys.argv and sys.exit handler during the run.
+
+    :param func: Function to execute
+    :param cmd: Command to run as (eg first element of sys.argv)
+    :param capture_stdout: Capture text from stdout and return that.
+    :param filter_lines: Regular expression used to filter captured output.
+    :return: str if `capture_stdout` is set else int exit code.
+
+    """
     def mock_exit(return_code):
         raise SystemExit(return_code)
 
@@ -160,13 +177,11 @@ def run_external_command(func, *cmd, **kwargs):
     full_cmd = ' '.join(shlex_quote(x) for x in cmd)
     _LOGGER.info("Running:  %s", full_cmd)
 
-    filter_lines = kwargs.get('filter_lines')
     orig_stdout = sys.stdout
     sys.stdout = RedirectText(sys.stdout, filter_lines=filter_lines)
     orig_stderr = sys.stderr
     sys.stderr = RedirectText(sys.stderr, filter_lines=filter_lines)
 
-    capture_stdout = kwargs.get('capture_stdout', False)
     if capture_stdout:
         cap_stdout = sys.stdout = io.StringIO()
 
@@ -242,3 +257,34 @@ def filter_yaml_files(files):
     files = [f for f in files if os.path.basename(f) != 'secrets.yaml']
     files = [f for f in files if not os.path.basename(f).startswith('.')]
     return files
+
+
+class SerialPort:
+    def __init__(self, path: str, description: str):
+        self.path = path
+        self.description = description
+
+
+# from https://github.com/pyserial/pyserial/blob/master/serial/tools/list_ports.py
+def get_serial_ports() -> List[SerialPort]:
+    from serial.tools.list_ports import comports
+    result = []
+    for port, desc, info in comports(include_links=True):
+        if not port:
+            continue
+        if "VID:PID" in info:
+            result.append(SerialPort(path=port, description=desc))
+    # Also add objects in /dev/serial/by-id/
+    # ref: https://github.com/esphome/issues/issues/1346
+
+    by_id_path = Path('/dev/serial/by-id')
+    if sys.platform.lower().startswith('linux') and by_id_path.exists():
+        from serial.tools.list_ports_linux import SysFS
+
+        for path in by_id_path.glob('*'):
+            device = SysFS(path)
+            if device.subsystem == 'platform':
+                result.append(SerialPort(path=str(path), description=info[1]))
+
+    result.sort(key=lambda x: x.path)
+    return result
