@@ -3,7 +3,6 @@
 
 set -e
 
-cd "
-"
+cd "$(dirname "$0")/.."
 pip install -r requirements_test.txt
 pip install -e .
